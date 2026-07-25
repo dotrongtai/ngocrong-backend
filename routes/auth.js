@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const rewardController = require('../controllers/rewardController');
-const { verifyToken } = require('../middleware/auth');
+const authController = require('../controllers/authController');
+const { verifyToken, validateRegister } = require('../middleware/auth');
 
-// 🎲 SPIN - Quay vòng (tạo reward)
-router.post('/spin', verifyToken, rewardController.spin);
+// 📝 ĐĂNG KÝ
+router.post('/register', validateRegister, authController.register);
 
-// 🎁 CLAIM - Nhận thưởng vào game
-router.post('/claim', verifyToken, rewardController.claimReward);
+// 🔑 ĐĂNG NHẬP
+router.post('/login', authController.login);
 
-// 📜 HISTORY - Lấy lịch sử rewards
-router.get('/history', verifyToken, rewardController.getHistory);
+// 👤 LẤY THÔNG TIN USER (cần token)
+router.get('/profile', verifyToken, authController.getProfile);
 
 module.exports = router;
