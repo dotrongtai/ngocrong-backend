@@ -1,9 +1,10 @@
 const pool = require('../config/database');
 
 // 🎲 SPIN - Quay vòng (tạo reward trong database)
+// 🎲 SPIN - Quay vòng (tạo reward trong database)
 exports.spin = async (req, res) => {
   try {
-    const { itemId, quantity } = req.body;
+    const { itemId, quantity, wheelIndex } = req.body;
     const userId = req.user.id;
 
     if (!itemId) {
@@ -15,10 +16,10 @@ exports.spin = async (req, res) => {
 
     const conn = await pool.getConnection();
 
-    // Tạo record reward mới với status = unclaimed
+    // Tạo record reward mới với status = unclaimed và lưu lại vị trí ô vòng quay (wheel_index)
     const [result] = await conn.query(
-      'INSERT INTO user_rewards (account_id, item_id, quantity, status) VALUES (?, ?, ?, "unclaimed")',
-      [userId, itemId, quantity || 1]
+      'INSERT INTO user_rewards (account_id, item_id, quantity, status, wheel_index) VALUES (?, ?, ?, "unclaimed", ?)',
+      [userId, itemId, quantity || 1, wheelIndex !== undefined ? wheelIndex : null]
     );
 
     conn.release();
