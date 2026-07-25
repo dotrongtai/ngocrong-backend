@@ -1,15 +1,16 @@
+// routes/reward.js
 const express = require('express');
 const router = express.Router();
 const rewardController = require('../controllers/rewardController');
 const { verifyToken } = require('../middleware/auth');
 
-// 🎲 SPIN - Quay vòng (tạo reward)
+// 🎲 Quay - tạo reward
 router.post('/spin', verifyToken, rewardController.spin);
 
-// 🎁 CLAIM - Nhận thưởng vào game
-router.post('/claim', verifyToken, rewardController.claimReward);
+// 📜 Lấy danh sách quà chưa nhận
+router.get('/unclaimed', verifyToken, rewardController.getUnclaimedRewards);
 
-// 📜 HISTORY - Lấy lịch sử rewards
-router.get('/history', verifyToken, rewardController.getHistory);
+// 🎁 Nhận vào game
+router.post('/claim', verifyToken, rewardController.claimReward);
 
 module.exports = router;
