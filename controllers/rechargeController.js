@@ -75,8 +75,9 @@ exports.payosWebhook = async (req, res) => {
   try {
     const webhookData = await payOS.webhooks.verify(req.body);
     // Nếu verify() không throw lỗi -> chữ ký hợp lệ, đúng là PayOS gọi tới
+    // Lưu ý: verify() trả về TRỰC TIẾP dữ liệu giao dịch, không bọc trong .data
 
-    const { orderCode, amount } = webhookData.data;
+    const { orderCode, amount } = webhookData;
 
     const conn = await pool.getConnection();
 
