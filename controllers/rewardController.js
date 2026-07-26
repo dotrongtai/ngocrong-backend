@@ -44,18 +44,16 @@ exports.spin = async (req, res) => {
       const lastLogin = Number(accRows[0].last_time_login || 0);
       const lastLogout = Number(accRows[0].last_time_logout || 0);
 
-      // Nếu Thời gian Đăng nhập > Thời gian Đăng xuất -> Player chưa thoát game
       if (lastLogin > lastLogout) {
         await conn.rollback();
         conn.release();
         return res.status(400).json({
           success: false,
-          message: '⚠️ Vui lòng ĐĂNG XUẤT khỏi game trước khi quay để hồng ngọc được đồng bộ chính xác!'
+          message: '⚠️ Vui lòng ĐĂNG XUẤT khỏi game trước khi quay!'
         });
       }
     }
 
-    // 1️⃣ Lấy player + khóa dòng (FOR UPDATE) để tránh quay 2 lượt cùng lúc trừ tiền sai
     const [players] = await conn.query(
       'SELECT id, data_inventory FROM player WHERE account_id = ? FOR UPDATE',
       [userId]
@@ -71,7 +69,6 @@ exports.spin = async (req, res) => {
     const originalRaw = player.data_inventory;
     const inventory = parseDataInventory(originalRaw);
 
-    // 2️⃣ Đếm tổng số lượt đã quay (claimed + unclaimed)
     const [countRows] = await conn.query(
       'SELECT COUNT(*) AS cnt FROM user_rewards WHERE account_id = ?',
       [userId]
