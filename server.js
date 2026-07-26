@@ -11,10 +11,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
-// Thêm dòng này vào server.js
 app.use('/api/reward', require('./routes/reward'));
-
-// Test route
+app.use('/api/recharge', require('./routes/recharge'));// Test route
 app.get('/', (req, res) => {
   res.json({
     message: '🐉 Welcome to Ngoc Rong Game API!',
