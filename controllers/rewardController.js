@@ -9,6 +9,7 @@ const {
   HONG_NGOC_INDEX
 } = require('../config/wheelConfig');
 
+// 🔧 Parse data_inventory - hỗ trợ cả dạng JSON "[1,2,3]" và dạng CSV thô "1,2,3"
 function parseDataInventory(raw) {
   if (raw === null || raw === undefined || raw === '') return [0, 0, 0, 0, 0];
   const str = String(raw).trim();
@@ -16,15 +17,29 @@ function parseDataInventory(raw) {
     const parsed = JSON.parse(str);
     if (Array.isArray(parsed)) return parsed.map(Number);
   } catch (e) {
+    // Không phải JSON hợp lệ -> thử tách theo dấu phẩy bên dưới
   }
   return str.replace(/^\[|\]$/g, '').split(',').map((v) => Number(v.trim()) || 0);
 }
 
+// 🔧 Serialize lại data_inventory đúng theo định dạng gốc đã đọc được (JSON hoặc CSV)
 function serializeDataInventory(arr, originalRaw) {
   const wasJsonArray = originalRaw && String(originalRaw).trim().startsWith('[');
   return wasJsonArray ? JSON.stringify(arr) : arr.join(',');
 }
 
+// 🔔 Ghi 1 dòng vào hàng đợi để game server (đang chạy) tự đồng bộ cho player đang online.
+// LƯU Ý QUAN TRỌNG: game server tra player online bằng PLAYERID_OBJECT.get(playerId) - tức
+// theo cột `id` của bảng player, KHÔNG phải account_id. Nên bắt buộc phải truyền đúng playerId.
+// Payload luôn là GIÁ TRỊ CUỐI CÙNG (SET), không phải delta -> xử lý trùng lặp vẫn an toàn.
+async function queueSync(conn, accountId, playerId, action, payload) {
+  await conn.query(
+    'INSERT INTO player_sync_queue (account_id, player_id, action, payload) VALUES (?, ?, ?, ?)',
+    [accountId, playerId, action, JSON.stringify(payload)]
+  );
+}
+
+// 🎲 SPIN - Quay vòng bằng hồng ngọc (server quyết định phần thưởng, KHÔNG tin dữ liệu client gửi lên)
 exports.spin = async (req, res) => {
   const userId = req.user.id;
   let conn;
@@ -121,6 +136,9 @@ exports.spin = async (req, res) => {
     const newInventoryRaw = serializeDataInventory(inventory, originalRaw);
 
     await conn.query('UPDATE player SET data_inventory = ? WHERE id = ?', [newInventoryRaw, player.id]);
+
+    // 6.5️⃣ Báo game server đồng bộ NGAY nếu player đang online (không cần đăng xuất/đăng nhập lại)
+    await queueSync(conn, userId, 'INVENTORY_SET', { data_inventory: inventory });
 
     // 7️⃣ Tạo record reward mới với status = unclaimed
     const [result] = await conn.query(
@@ -220,10 +238,11 @@ exports.getUnclaimedRewards = async (req, res) => {
 };
 
 exports.claimReward = async (req, res) => {
-  try {
-    const { rewardId } = req.body;
-    const userId = req.user.id;
+  const { rewardId } = req.body;
+  const userId = req.user.id;
+  let conn;
 
+  try {
     if (!rewardId) {
       return res.status(400).json({
         success: false,
@@ -231,7 +250,8 @@ exports.claimReward = async (req, res) => {
       });
     }
 
-    const conn = await pool.getConnection();
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
 
     const [rewards] = await conn.query(
       'SELECT * FROM user_rewards WHERE id = ? AND account_id = ? AND status = "unclaimed"',
@@ -239,6 +259,7 @@ exports.claimReward = async (req, res) => {
     );
 
     if (rewards.length === 0) {
+      await conn.rollback();
       conn.release();
       return res.status(404).json({
         success: false,
@@ -253,6 +274,7 @@ exports.claimReward = async (req, res) => {
     const [players] = await conn.query('SELECT id, items_bag FROM player WHERE account_id = ?', [userId]);
 
     if (players.length === 0) {
+      await conn.rollback();
       conn.release();
       return res.status(404).json({
         success: false,
@@ -290,6 +312,10 @@ exports.claimReward = async (req, res) => {
 
     await conn.query('UPDATE user_rewards SET status = "claimed", claimed_time = NOW() WHERE id = ?', [rewardId]);
 
+    // 🔔 Báo game server đồng bộ NGAY nếu player đang online (không cần đăng xuất/đăng nhập lại)
+    await queueSync(conn, userId, 'ITEMS_BAG_SET', { items_bag: itemsBag });
+
+    await conn.commit();
     conn.release();
 
     return res.status(200).json({
@@ -297,6 +323,14 @@ exports.claimReward = async (req, res) => {
       message: '✅ Vật phẩm đã được thêm vào hành trang!'
     });
   } catch (error) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch (e) {
+        // bỏ qua lỗi rollback
+      }
+      conn.release();
+    }
     console.error('Claim Reward Error:', error);
     return res.status(500).json({
       success: false,
