@@ -160,3 +160,65 @@ exports.getProfile = async (req, res) => {
     });
   }
 };
+
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập đầy đủ mật khẩu cũ và mật khẩu mới'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mật khẩu mới phải từ 6 ký tự trở lên'
+      });
+    }
+
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query(
+      'SELECT * FROM account WHERE id = ?',
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      conn.release();
+      return res.status(404).json({
+        success: false,
+        message: 'Người dùng không tồn tại'
+      });
+    }
+
+    const user = rows[0];
+
+    if (oldPassword !== user.password) {
+      conn.release();
+      return res.status(401).json({
+        success: false,
+        message: 'Mật khẩu cũ không chính xác'
+      });
+    }
+
+    await conn.query(
+      'UPDATE account SET password = ? WHERE id = ?',
+      [newPassword, userId]
+    );
+    conn.release();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Đổi mật khẩu thành công!'
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server: ' + error.message
+    });
+  }
+};

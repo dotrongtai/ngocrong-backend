@@ -9,6 +9,8 @@ router.post('/register', validateRegister, authController.register);
 // 🔑 ĐĂNG NHẬP
 router.post('/login', authController.login);
 
+router.post('/change-password', verifyToken, authController.changePassword);
+
 // 👤 LẤY THÔNG TIN USER (cần token)
 router.get('/profile', verifyToken, authController.getProfile);
 
