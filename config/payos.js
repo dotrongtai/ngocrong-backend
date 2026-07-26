@@ -1,5 +1,5 @@
 
-const PayOS = require("@payos/node").default || require("@payos/node");
+const { PayOS } = require("@payos/node");
 
 const payOS = new PayOS({
   clientId: process.env.PAYOS_CLIENT_ID,
