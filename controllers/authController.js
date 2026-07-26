@@ -108,7 +108,7 @@ exports.login = async (req, res) => {
         username: user.username 
       },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRE }
+      { expiresIn: process.env.JWT_EXPIRE || '7d' }
     );
 
     return res.status(200).json({
@@ -136,7 +136,7 @@ exports.getProfile = async (req, res) => {
 
     const conn = await pool.getConnection();
     const [rows] = await conn.query(
-      'SELECT id, username, create_time FROM account WHERE id = ?',
+      'SELECT id, username, create_time, vnd, tongnap FROM account WHERE id = ?',
       [userId]
     );
     conn.release();
