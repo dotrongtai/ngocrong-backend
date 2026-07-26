@@ -2,6 +2,15 @@
 const payOS = require("../config/payos");
 const pool = require("../config/database");
 
+// ============ MỐC THƯỞNG NẠP TIỀN ============
+// Trả về % thưởng dựa theo số tiền nạp (kiểm tra từ mốc cao xuống thấp)
+function getBonusPercent(amount) {
+  if (amount >= 500000) return 20;
+  if (amount >= 200000) return 15;
+  if (amount >= 100000) return 10;
+  return 0;
+}
+
 // ============ TẠO LINK/QR THANH TOÁN ============
 // POST /api/recharge/create
 // Body: { amount: 10000 }  (số tiền VNĐ muốn nạp)
@@ -17,14 +26,17 @@ exports.createRecharge = async (req, res) => {
       });
     }
 
+    const bonusPercent = getBonusPercent(amount);
+    const vndCredit = amount + Math.round((amount * bonusPercent) / 100);
+
     // orderCode phải là số nguyên, không trùng lặp -> dùng timestamp
     const orderCode = Number(String(Date.now()).slice(-9));
 
     const conn = await pool.getConnection();
     await conn.query(
-      `INSERT INTO recharge_transactions (user_id, order_code, amount, status, created_at)
-       VALUES (?, ?, ?, 'pending', NOW())`,
-      [userId, orderCode, amount]
+      `INSERT INTO recharge_transactions (user_id, order_code, amount, bonus_percent, vnd_credit, status, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', NOW())`,
+      [userId, orderCode, amount, bonusPercent, vndCredit]
     );
     conn.release();
 
@@ -32,8 +44,8 @@ exports.createRecharge = async (req, res) => {
       orderCode: orderCode,
       amount: amount,
       description: `Nap tien NRO ${orderCode}`, // PayOS giới hạn description ngắn, không dấu
-      returnUrl: "https://ngocrong-frontend.pages.dev/index.html",
-      cancelUrl: "https://ngocrong-frontend.pages.dev/index.html",
+      returnUrl: "https://ngocrong-frontend.pages.dev/topup.html",
+      cancelUrl: "https://ngocrong-frontend.pages.dev/topup.html",
     };
 
     const paymentLink = await payOS.paymentRequests.create(paymentData);
@@ -43,6 +55,8 @@ exports.createRecharge = async (req, res) => {
       checkoutUrl: paymentLink.checkoutUrl,
       qrCode: paymentLink.qrCode,
       orderCode: orderCode,
+      bonusPercent: bonusPercent,
+      vndCredit: vndCredit,
     });
   } catch (error) {
     console.error("Create Recharge Error:", error);
@@ -87,10 +101,10 @@ exports.payosWebhook = async (req, res) => {
       return res.status(200).json({ message: "Số tiền không khớp" });
     }
 
-    // Cộng tiền vào tài khoản: vnd += amount, tongnap += amount
+    // Cộng tiền vào tài khoản: vnd += vnd_credit (đã gồm % thưởng), tongnap += amount thực nạp
     await conn.query(
       `UPDATE account SET vnd = vnd + ?, tongnap = tongnap + ? WHERE id = ?`,
-      [amount, amount, transaction.user_id]
+      [transaction.vnd_credit, amount, transaction.user_id]
     );
 
     // Đánh dấu giao dịch đã hoàn tất
