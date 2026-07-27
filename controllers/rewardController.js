@@ -25,7 +25,6 @@ function serializeDataInventory(arr, originalRaw) {
   return wasJsonArray ? JSON.stringify(arr) : arr.join(',');
 }
 
-// 🎲 SPIN - Quay vòng bằng hồng ngọc (Yêu cầu player phải thoát game trước)
 exports.spin = async (req, res) => {
   const userId = req.user.id;
   let conn;
@@ -34,7 +33,6 @@ exports.spin = async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    // 0️⃣ KIỂM TRA TRẠNG THÁI ONLINE CỦA PLAYER
     const [accRows] = await conn.query(
       'SELECT last_time_login, last_time_logout FROM account WHERE id = ?',
       [userId]
@@ -84,11 +82,10 @@ exports.spin = async (req, res) => {
       });
     }
 
-    const spinNumber = spinsDone + 1; // 1..10
+    const spinNumber = spinsDone + 1; 
     const cost = SPIN_COSTS[spinsDone];
     const currentHongNgoc = inventory[HONG_NGOC_INDEX] || 0;
 
-    // 3️⃣ Kiểm tra đủ hồng ngọc không
     if (currentHongNgoc < cost) {
       await conn.rollback();
       conn.release();
@@ -100,18 +97,15 @@ exports.spin = async (req, res) => {
       });
     }
 
-    // 4️⃣ Lấy các wheel_index đã quay trúng để không lặp lại
     const [usedRows] = await conn.query(
       'SELECT wheel_index FROM user_rewards WHERE account_id = ?',
       [userId]
     );
     const usedIndices = usedRows.map((r) => r.wheel_index);
 
-    // 5️⃣ Chọn wheel_index theo đúng quy tắc từng lượt
     let wheelIndex;
 
     if (spinNumber <= 7) {
-      // 7 lượt đầu: random trong các ô "thường", không trùng ô đã có
       const available = NORMAL_INDICES.filter((i) => !usedIndices.includes(i));
       if (available.length === 0) {
         await conn.rollback();
@@ -120,7 +114,6 @@ exports.spin = async (req, res) => {
       }
       wheelIndex = available[Math.floor(Math.random() * available.length)];
     } else if (spinNumber === 8 || spinNumber === 9) {
-      // Lượt 8, 9: random giữa Pet rồng và Phượng hoàng lửa, không trùng nhau
       const available = SPECIAL_LAST_INDICES.filter((i) => !usedIndices.includes(i));
       if (available.length === 0) {
         await conn.rollback();
@@ -129,19 +122,15 @@ exports.spin = async (req, res) => {
       }
       wheelIndex = available[Math.floor(Math.random() * available.length)];
     } else {
-      // Lượt 10: BẮT BUỘC ra Cải trang Frieren
       wheelIndex = FRIEREN_INDEX;
     }
 
     const prize = PRIZES[wheelIndex];
-
-    // 6️⃣ Trừ hồng ngọc và cập nhật player
     inventory[HONG_NGOC_INDEX] = currentHongNgoc - cost;
     const newInventoryRaw = serializeDataInventory(inventory, originalRaw);
 
     await conn.query('UPDATE player SET data_inventory = ? WHERE id = ?', [newInventoryRaw, player.id]);
 
-    // 7️⃣ Tạo record reward mới với status = unclaimed
     const [result] = await conn.query(
       'INSERT INTO user_rewards (account_id, item_id, quantity, status, wheel_index) VALUES (?, ?, ?, "unclaimed", ?)',
       [userId, prize.id, prize.quantity, wheelIndex]
@@ -152,7 +141,7 @@ exports.spin = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: `✅ Quay thành công! Đã trừ ${cost} hồng ngọc.`,
+      message: `Thành công rui kìa bé, kiểm tra ngay lịch sử quanh đó nha.`,
       rewardId: result.insertId,
       itemId: prize.id,
       quantity: prize.quantity,
@@ -166,7 +155,6 @@ exports.spin = async (req, res) => {
       try {
         await conn.rollback();
       } catch (e) {
-        // bỏ qua lỗi rollback
       }
       conn.release();
     }
@@ -175,7 +163,6 @@ exports.spin = async (req, res) => {
   }
 };
 
-// 📊 STATUS - Trả về số lượt đã quay, chi phí lượt kế tiếp, số hồng ngọc hiện có
 exports.getStatus = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -237,7 +224,6 @@ exports.getUnclaimedRewards = async (req, res) => {
   }
 };
 
-// 🎁 CLAIM REWARD - Nhận quà vào túi đồ (Cũng yêu cầu player phải thoát game)
 exports.claimReward = async (req, res) => {
   const { rewardId } = req.body;
   const userId = req.user.id;
@@ -254,7 +240,6 @@ exports.claimReward = async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    // 0️⃣ KIỂM TRA TRẠNG THÁI ONLINE CỦA PLAYER
     const [accRows] = await conn.query(
       'SELECT last_time_login, last_time_logout FROM account WHERE id = ?',
       [userId]
@@ -338,7 +323,7 @@ exports.claimReward = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: '✅ Vật phẩm đã được thêm vào hành trang!'
+      message: 'Vật phẩm đã được thêm vào hành trang!'
     });
   } catch (error) {
     if (conn) {
@@ -357,7 +342,6 @@ exports.claimReward = async (req, res) => {
   }
 };
 
-// 📜 GET HISTORY - Lấy toàn bộ lịch sử (claimed + unclaimed)
 exports.getHistory = async (req, res) => {
   try {
     const userId = req.user.id;

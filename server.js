@@ -12,7 +12,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/reward', require('./routes/reward'));
-app.use('/api/recharge', require('./routes/recharge'));// Test route
+app.use('/api/recharge', require('./routes/recharge'));
 app.get('/', (req, res) => {
   res.json({
     message: '🐉 Welcome to Ngoc Rong Game API!',
@@ -42,13 +42,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════╗
-║  🐉 NGOC RONG GAME SERVER         ║
-║  ✅ Running on port ${PORT}        ║
+║  🐉 TÀI ĐẸP TRAI SERVER         ║
+║  ✅ Running on port ${PORT}     ║
 ║  🌍 http://localhost:${PORT}      ║
 ╚════════════════════════════════════╝
   `);
