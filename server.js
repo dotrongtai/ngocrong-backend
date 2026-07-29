@@ -13,6 +13,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/reward', require('./routes/reward'));
 app.use('/api/recharge', require('./routes/recharge'));
+app.use("/api/event", require("./routes/event"));
 app.get('/', (req, res) => {
   res.json({
     message: '🐉 Welcome to Ngoc Rong Game API!',
